@@ -7,6 +7,7 @@ import { AudioVisualizer } from "@/components/AudioVisualizer";
 import { CameraDock } from "@/components/CameraDock";
 import { ChatPanel } from "@/components/ChatPanel";
 import { ToolTimeline } from "@/components/ToolTimeline";
+import { GalaxyBackground } from "@/components/ui/galaxy-background";
 import { HeaderDock } from "@/components/HeaderDock";
 import { SettingsSheet } from "@/components/SettingsSheet";
 import { VoiceButton } from "@/components/VoiceButton";
@@ -44,7 +45,6 @@ export function HomePage() {
     }
   }, [captureAndSendFrame]);
 
-
   useEffect(() => {
     if (!settings.autoFrame || !connected) return;
     const interval = setInterval(() => {
@@ -57,14 +57,9 @@ export function HomePage() {
   const speaking = phase === "speaking";
 
   return (
-    <div className="relative flex min-h-screen w-full flex-col gap-8">
-      <motion.div
-        className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br from-neon-cyan/20 via-transparent to-neon-magenta/20"
-        initial={{ opacity: 0.4, scale: 0.95 }}
-        animate={{ opacity: [0.3, 0.55, 0.3], scale: [0.95, 1.02, 0.95] }}
-        transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <div className="flex flex-wrap items-center justify-between gap-4 ">
+    <div className="relative flex min-h-screen w-full flex-col gap-8 overflow-hidden">
+      <GalaxyBackground />
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <HeaderDock connected={connected} phase={phase} />
         <SettingsSheet />
       </div>
@@ -86,7 +81,7 @@ export function HomePage() {
             whileHover={{ scale: 1.02 }}
             transition={{ type: "spring", stiffness: 120, damping: 18 }}
           >
-            <div className="flex items-center w-[50%] gap-6">
+            <div className="flex w-[50%] items-center gap-6">
               <VoiceButton
                 active={listening}
                 onEngage={() => sendControlEvent("start_listen")}
@@ -130,12 +125,3 @@ export function HomePage() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
