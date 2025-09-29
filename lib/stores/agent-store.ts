@@ -23,6 +23,8 @@ export type AgentMessage = {
   toolCall?: { name: string; args: unknown };
   toolResult?: unknown;
   toolName?: string;
+  primaryModel?: string;
+  comparisons?: Array<{ model: string; text: string }>;
   ts: number;
   partial?: boolean;
 };
@@ -32,6 +34,10 @@ export type AgentSettings = {
   frameRate: number;
   voice: string;
   model: string;
+  secondaryModel: string;
+  dualModelPreview: boolean;
+  autoFallbackLongform: boolean;
+  imageModel: string;
   speechRate: number;
 };
 
@@ -55,6 +61,8 @@ export type AgentStore = {
 };
 
 const DEFAULT_MODEL = "gemini-2.5-flash";
+const DEFAULT_SECONDARY_MODEL = "gemini-2.5-pro";
+const DEFAULT_IMAGE_MODEL = "imagen-3.0-generate";
 const ENV_VOICE =
   process.env.NEXT_PUBLIC_ELEVENLABS_VOICE_ID ?? process.env.ELEVENLABS_VOICE_ID ?? "";
 
@@ -74,6 +82,13 @@ function normalizeGeminiModel(input?: string) {
   return lower;
 }
 
+function normalizeImageModel(input?: string) {
+  if (!input) return DEFAULT_IMAGE_MODEL;
+  const trimmed = input.trim();
+  if (!trimmed) return DEFAULT_IMAGE_MODEL;
+  return trimmed;
+}
+
 function normalizeVoiceId(input?: string) {
   if (!input) return "";
   const trimmed = input.trim();
@@ -88,6 +103,10 @@ const defaultSettings: AgentSettings = {
   frameRate: 1.5,
   voice: normalizeVoiceId(ENV_VOICE),
   model: normalizeGeminiModel(process.env.NEXT_PUBLIC_GEMINI_MODEL),
+  secondaryModel: normalizeGeminiModel(process.env.NEXT_PUBLIC_GEMINI_SECONDARY_MODEL ?? DEFAULT_SECONDARY_MODEL),
+  dualModelPreview: false,
+  autoFallbackLongform: true,
+  imageModel: normalizeImageModel(process.env.NEXT_PUBLIC_GEMINI_IMAGE_MODEL ?? DEFAULT_IMAGE_MODEL),
   speechRate: 1
 };
 
@@ -134,14 +153,31 @@ export const useAgentStore = create<AgentStore>()(
           }));
         },
         setSettings: (patch) =>
-          set((state) => ({
-            settings: {
+          set((state) => {
+            const next: AgentSettings = {
               ...state.settings,
-              ...patch,
-              model: patch.model ? normalizeGeminiModel(patch.model) : state.settings.model,
-              voice: patch.voice !== undefined ? normalizeVoiceId(patch.voice) : state.settings.voice
+              ...patch
+            };
+            if (patch.model !== undefined) {
+              next.model = normalizeGeminiModel(patch.model);
             }
-          })),
+            if (patch.secondaryModel !== undefined) {
+              next.secondaryModel = normalizeGeminiModel(patch.secondaryModel);
+            }
+            if (patch.voice !== undefined) {
+              next.voice = normalizeVoiceId(patch.voice);
+            }
+            if (patch.imageModel !== undefined) {
+              next.imageModel = normalizeImageModel(patch.imageModel);
+            }
+            if (patch.dualModelPreview !== undefined) {
+              next.dualModelPreview = patch.dualModelPreview;
+            }
+            if (patch.autoFallbackLongform !== undefined) {
+              next.autoFallbackLongform = patch.autoFallbackLongform;
+            }
+            return { settings: next };
+          }),
         clearMessages: () => set({ messages: [], currentTranscriptPartial: undefined })
       }),
       {
@@ -154,7 +190,12 @@ export const useAgentStore = create<AgentStore>()(
           state.messages = [];
           state.currentTranscriptPartial = undefined;
           state.settings.model = normalizeGeminiModel(state.settings.model);
+          state.settings.secondaryModel = normalizeGeminiModel(state.settings.secondaryModel ?? DEFAULT_SECONDARY_MODEL);
           state.settings.voice = normalizeVoiceId(state.settings.voice);
+          state.settings.dualModelPreview = Boolean(state.settings.dualModelPreview);
+          state.settings.autoFallbackLongform =
+            state.settings.autoFallbackLongform === undefined ? true : Boolean(state.settings.autoFallbackLongform);
+          state.settings.imageModel = normalizeImageModel(state.settings.imageModel ?? DEFAULT_IMAGE_MODEL);
         }
       }
     )

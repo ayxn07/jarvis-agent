@@ -1,5 +1,6 @@
-"use client";
+﻿"use client";
 
+import { StarBorder } from "@appletosolutions/reactbits";
 import { AnimatePresence, motion } from "framer-motion";
 import { Bot, Clock, Terminal, User } from "lucide-react";
 import { useCallback, useMemo, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
@@ -107,6 +108,7 @@ function MessageBubble({ message }: { message: AgentMessage }) {
   const accent = isUser ? "bg-neon-magenta/40" : "bg-neon-cyan/40";
   const hasToolResult = message.toolResult !== undefined && message.toolResult !== null;
   const showCaret = Boolean(message.partial);
+  const comparisons = message.comparisons ?? [];
 
   const segments = useMemo(() => {
     const source = message.text ?? message.displayText ?? "";
@@ -120,15 +122,50 @@ function MessageBubble({ message }: { message: AgentMessage }) {
     : message.displayText?.length ?? totalChars;
   const renderedText = useMemo(() => renderMarkdownSegments(segments, visibleChars), [segments, visibleChars]);
 
+  const comparisonCards = useMemo(() => {
+    if (!comparisons.length) return null;
+    return comparisons.map((item, index) => {
+      const altSegments = segmentSimpleMarkdown(item.text ?? "");
+      const totalAltChars = countPlainTextLength(altSegments);
+      const nodes = renderMarkdownSegments(altSegments, totalAltChars);
+      return (
+        <StarBorder
+          as="div"
+          key={`${message.id}-${item.model}-${index}`}
+          color="#47f2ff"
+          className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm leading-6 text-white/80 backdrop-blur-lg"
+        >
+          <header className="flex items-center gap-3 text-xs uppercase tracking-[0.3em] text-white/50">
+            <span className="rounded-full border border-neon-cyan/40 bg-neon-cyan/10 px-2 py-0.5 text-[10px] font-semibold text-neon-cyan/80">
+              {item.model}
+            </span>
+            <span>Alternative</span>
+          </header>
+          <div className="space-y-2">{nodes}</div>
+        </StarBorder>
+      );
+    });
+  }, [comparisons, message.id]);
+
   return (
     <article className="flex gap-4 text-sm">
       <div className={cn("mt-1 flex h-8 w-8 items-center justify-center rounded-full", accent)}>{icon}</div>
       <div className="flex-1 space-y-2">
-        <header className="flex items-center gap-2 text-xs uppercase tracking-[0.3em] text-white/40">
+        <header className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.3em] text-white/40">
           <span>{message.role}</span>
           <span className="flex items-center gap-1">
             <Clock className="h-3 w-3" /> {new Date(message.ts).toLocaleTimeString()}
           </span>
+          {message.primaryModel && (
+            <span className="rounded-full border border-neon-cyan/40 bg-neon-cyan/10 px-2 py-0.5 text-[10px] font-semibold text-neon-cyan/80">
+              {message.primaryModel}
+            </span>
+          )}
+          {comparisons.length > 0 && (
+            <span className="rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/70">
+              {comparisons.length} alt
+            </span>
+          )}
           {message.partial && <span className="text-neon-cyan/70">streaming</span>}
         </header>
 
@@ -139,6 +176,13 @@ function MessageBubble({ message }: { message: AgentMessage }) {
               <span className="ml-[2px] inline-block h-[1.1em] w-[2px] animate-pulse rounded-sm bg-white/70 align-middle" />
             )}
           </p>
+        )}
+
+        {comparisonCards && (
+          <div className="mt-4 space-y-3">
+            <p className="text-xs uppercase tracking-[0.3em] text-white/40">Alternative models</p>
+            {comparisonCards}
+          </div>
         )}
 
         {message.toolCall && (
@@ -196,6 +240,8 @@ function renderMarkdownSegments(segments: MarkdownSegment[], visibleChars: numbe
 
   return nodes;
 }
+
+
 
 
 

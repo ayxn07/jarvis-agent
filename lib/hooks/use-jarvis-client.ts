@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -18,6 +18,24 @@ type PlayTtsCallbacks = {
 const BASE_WPM = 165;
 const BASE_CHARS_PER_SECOND = 13;
 const MAX_TEXT_LEAD_SECONDS = 0.35;
+const LONGFORM_WORD_THRESHOLD = 120;
+const LONGFORM_CHAR_THRESHOLD = 600;
+
+type GeminiOutput = {
+  model: string;
+  text: string;
+};
+
+type GeminiFailure = {
+  model: string;
+  error: string;
+};
+
+type GeminiResponse = {
+  primary: GeminiOutput;
+  alternatives: GeminiOutput[];
+  failures: GeminiFailure[];
+};
 
 const IDENTITY_PATTERNS = [
   /\bwho\s+are\s+you\b/,
@@ -61,9 +79,9 @@ function expandSpeechAbbreviations(input: string) {
   let output = input;
 
   const replacements: Array<[RegExp, string]> = [
-    [/°\s*[Ff]/g, " degrees Fahrenheit"],
-    [/°\s*[Cc]/g, " degrees Celsius"],
-    [/°\s*[Kk]/g, " degrees Kelvin"],
+    [/Â°\s*[Ff]/g, " degrees Fahrenheit"],
+    [/Â°\s*[Cc]/g, " degrees Celsius"],
+    [/Â°\s*[Kk]/g, " degrees Kelvin"],
     [/\bAI\b/g, "A I"],
     [/\bAR\b/g, "A R"],
     [/\bVR\b/g, "V R"],
@@ -98,6 +116,24 @@ function expandSpeechAbbreviations(input: string) {
 
   return output;
 }
+
+function shouldTriggerLongformFallback(text?: string, imageBase64?: string) {
+  const trimmed = text?.trim() ?? "";
+  if (trimmed.length >= LONGFORM_CHAR_THRESHOLD) return true;
+  const words = trimmed ? trimmed.split(/\s+/).length : 0;
+  if (words >= LONGFORM_WORD_THRESHOLD) return true;
+  if (imageBase64) return true;
+  return false;
+}
+
+function toGeminiResponse(text: string, model: string): GeminiResponse {
+  return {
+    primary: { model, text },
+    alternatives: [],
+    failures: []
+  };
+}
+
 export function useJarvisClient() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -216,27 +252,103 @@ export function useJarvisClient() {
   }, []);
 
   const callGemini = useCallback(
-    async ({ text, imageBase64 }: { text?: string; imageBase64?: string }) => {
+    async ({
+      text,
+      imageBase64,
+      allowFallback
+    }: { text?: string; imageBase64?: string; allowFallback?: boolean }): Promise<GeminiResponse> => {
+      const primaryModel = settings.model;
+      const secondaryModel = settings.secondaryModel;
+      const extras: string[] = [];
+      const modelsDiffer = secondaryModel.trim().toLowerCase() !== primaryModel.trim().toLowerCase();
+      if (settings.dualModelPreview && modelsDiffer) {
+        extras.push(secondaryModel);
+      } else if (allowFallback && settings.autoFallbackLongform && modelsDiffer) {
+        if (shouldTriggerLongformFallback(text, imageBase64)) {
+          extras.push(secondaryModel);
+        }
+      }
+
+      const body: Record<string, unknown> = {
+        text,
+        imageBase64,
+        history: historySnapshot(),
+        model: primaryModel
+      };
+      if (extras.length > 0) {
+        body.models = extras;
+      }
+
       const res = await fetch("/api/gemini/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text,
-          imageBase64,
-          history: historySnapshot(),
-          model: settings.model
-        })
+        body: JSON.stringify(body)
       });
 
       if (!res.ok) {
         const errorBody = await res.json().catch(() => ({}));
-        throw new Error(errorBody.error ?? `Gemini request failed (${res.status})`);
+        const message = (errorBody as { error?: string }).error ?? "Gemini request failed (" + res.status + ")";
+        throw new Error(message);
       }
 
-      const data = (await res.json()) as { text: string };
-      return data.text;
+      const data = (await res.json()) as {
+        outputs?: Array<{ model?: string; text?: string }>;
+        primary?: { model?: string; text?: string };
+        text?: string;
+        failures?: Array<{ model?: string; error?: string }>;
+      };
+
+      const outputs = Array.isArray(data.outputs)
+        ? data.outputs
+            .filter((item): item is { model: string; text: string } =>
+              typeof item?.model === "string" && typeof item?.text === "string"
+            )
+            .map((item) => ({ model: item.model, text: item.text }))
+        : [];
+
+      let primary =
+        data.primary && typeof data.primary.model === "string" && typeof data.primary.text === "string"
+          ? { model: data.primary.model, text: data.primary.text }
+          : null;
+
+      if (!primary && outputs.length > 0) {
+        primary = outputs[0];
+      }
+
+      if (!primary && typeof data.text === "string") {
+        primary = { model: primaryModel, text: data.text };
+      }
+
+      if (!primary) {
+        throw new Error("Gemini request failed");
+      }
+
+      const alternatives = outputs.filter(
+        (item) => item.model !== primary!.model || item.text !== primary!.text
+      );
+
+      const failures = Array.isArray(data.failures)
+        ? data.failures
+            .filter(
+              (item): item is { model: string; error: string } =>
+                typeof item?.model === "string" && typeof item?.error === "string"
+            )
+            .map((item) => ({ model: item.model, error: item.error }))
+        : [];
+
+      return {
+        primary,
+        alternatives,
+        failures
+      };
     },
-    [historySnapshot, settings.model]
+    [
+      historySnapshot,
+      settings.autoFallbackLongform,
+      settings.dualModelPreview,
+      settings.model,
+      settings.secondaryModel
+    ]
   );
 
   const playTts = useCallback(
@@ -353,8 +465,9 @@ export function useJarvisClient() {
   );
 
   const handleAssistantReply = useCallback(
-    async (response: string) => {
-      const trimmed = response.trim() || "I do not have a response right now.";
+    async (response: GeminiResponse) => {
+      const primaryText = response.primary.text ?? "";
+      const trimmed = primaryText.trim() || "I do not have a response right now.";
       const plain = stripSimpleMarkdown(trimmed);
       const basePlain = plain.trim() ? plain : trimmed;
       const speechText = expandSpeechAbbreviations(basePlain);
@@ -367,7 +480,9 @@ export function useJarvisClient() {
         text: trimmed,
         displayText: "",
         ts: now,
-        partial: true
+        partial: true,
+        primaryModel: response.primary.model,
+        comparisons: response.alternatives
       });
 
       const safeRate = Math.max(0.25, Number.isFinite(settings.speechRate) ? settings.speechRate : 1);
@@ -446,7 +561,9 @@ export function useJarvisClient() {
           const display = typewriterText.slice(0, charCount);
           updateMessage(messageId, {
             displayText: display,
-            partial: charCount < totalLength
+            partial: charCount < totalLength,
+            primaryModel: response.primary.model,
+            comparisons: response.alternatives
           });
 
           if (charCount >= totalLength) {
@@ -512,7 +629,13 @@ export function useJarvisClient() {
           cancel();
         }
         cancelTypewriter = undefined;
-        updateMessage(messageId, { displayText: typewriterText, partial: false });
+        updateMessage(messageId, {
+          displayText: typewriterText,
+          partial: false,
+          primaryModel: response.primary.model,
+          comparisons: response.alternatives,
+          text: trimmed
+        });
       } catch (error) {
         const cancel: (() => void) | undefined = cancelTypewriter;
         if (typeof cancel === "function") {
@@ -520,7 +643,13 @@ export function useJarvisClient() {
         }
         cancelTypewriter = undefined;
         console.error(error);
-        updateMessage(messageId, { displayText: typewriterText, partial: false });
+        updateMessage(messageId, {
+          displayText: typewriterText,
+          partial: false,
+          primaryModel: response.primary.model,
+          comparisons: response.alternatives,
+          text: trimmed
+        });
         addMessage({
           id: crypto.randomUUID(),
           role: "system",
@@ -530,6 +659,18 @@ export function useJarvisClient() {
         setPhase("error");
       } finally {
         setPhase("idle");
+      }
+
+      if (response.failures.length > 0) {
+        const detail = response.failures
+          .map((failure) => `${failure.model}: ${failure.error}`)
+          .join("; ");
+        addMessage({
+          id: crypto.randomUUID(),
+          role: "system",
+          ts: Date.now(),
+          text: `Secondary model issue - ${detail}`
+        });
       }
     },
     [addMessage, playTts, setPhase, settings.speechRate, updateMessage]
@@ -550,13 +691,13 @@ export function useJarvisClient() {
       const normalized = trimmed.toLowerCase();
       if (IDENTITY_PATTERNS.some((pattern) => pattern.test(normalized))) {
         setPhase("thinking");
-        await handleAssistantReply(IDENTITY_RESPONSE);
+        await handleAssistantReply(toGeminiResponse(IDENTITY_RESPONSE, settings.model));
         return;
       }
 
       setPhase("thinking");
       try {
-        const response = await callGemini({ text: trimmed });
+        const response = await callGemini({ text: trimmed, allowFallback: true });
         await handleAssistantReply(response);
       } catch (error) {
         console.error(error);
@@ -569,7 +710,7 @@ export function useJarvisClient() {
         setPhase("error");
       }
     },
-    [addMessage, callGemini, handleAssistantReply, setPhase]
+    [addMessage, callGemini, handleAssistantReply, setPhase, settings.model]
   );
 
   const sendControlEvent = useCallback(
@@ -624,7 +765,8 @@ export function useJarvisClient() {
       try {
         const response = await callGemini({
           text: DEFAULT_PROMPT,
-          imageBase64: base64
+          imageBase64: base64,
+          allowFallback: true
         });
         await handleAssistantReply(response);
 
@@ -677,6 +819,42 @@ export function useJarvisClient() {
     return () => window.clearInterval(interval);
   }, [captureAndSendFrame, settings.autoFrame, settings.frameRate]);
 
+  const generateImages = useCallback(
+    async ({ prompt, aspectRatio, negativePrompt, count }: { prompt: string; aspectRatio?: string; negativePrompt?: string; count?: number }) => {
+      const trimmedPrompt = prompt.trim();
+      if (!trimmedPrompt) {
+        throw new Error("Prompt is required to generate an image");
+      }
+
+      const res = await fetch("/api/gemini/image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: trimmedPrompt,
+          aspectRatio: aspectRatio?.trim() || undefined,
+          negativePrompt: negativePrompt?.trim() || undefined,
+          numberOfImages: count && count > 0 ? Math.min(count, 4) : 1,
+          model: settings.imageModel
+        })
+      });
+
+      if (!res.ok) {
+        const errorBody = await res.json().catch(() => ({}));
+        const message = (errorBody as { error?: string }).error ?? "Image generation failed";
+        throw new Error(message);
+      }
+
+      const data = (await res.json()) as {
+        images: Array<{ id: string; base64: string; mimeType: string; dataUrl: string }>;
+        model: string;
+        promptFeedback?: unknown;
+      };
+
+      return data;
+    },
+    [settings.imageModel]
+  );
+
   return {
     audioRef,
     videoRef,
@@ -686,28 +864,9 @@ export function useJarvisClient() {
     sendUserText,
     sendControlEvent,
     captureAndSendFrame,
+    generateImages,
     attachVideo
   };
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 

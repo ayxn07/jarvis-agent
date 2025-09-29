@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, type Content, type Part } from "@google/generative-ai";
+﻿import { GoogleGenerativeAI, type Content, type Part } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -19,7 +19,8 @@ const requestSchema = z.object({
       })
     )
     .default([]),
-  model: z.string().optional()
+  model: z.string().optional(),
+  models: z.array(z.string()).optional()
 });
 
 function normalizeModel(name?: string) {
@@ -67,9 +68,70 @@ function getClient() {
   return cachedClient;
 }
 
+type ModelSuccess = { model: string; text: string };
+type ModelFailure = { model: string; error: string };
+type ModelResult = ModelSuccess | ModelFailure;
+
+function isSuccess(result: ModelResult): result is ModelSuccess {
+  return "text" in result;
+}
+
+function isFailure(result: ModelResult): result is ModelFailure {
+  return "error" in result;
+}
+
+function modelsToQuery(primary?: string, extras: string[] = []) {
+  const ordered: string[] = [];
+  const push = (candidate?: string) => {
+    if (!candidate) return;
+    const normalized = normalizeModel(candidate);
+    if (!ordered.includes(normalized)) {
+      ordered.push(normalized);
+    }
+  };
+
+  push(primary);
+  extras.forEach((entry) => push(entry));
+
+  if (ordered.length === 0) {
+    push(process.env.GEMINI_MODEL);
+  }
+  if (ordered.length === 0) {
+    ordered.push(DEFAULT_MODEL);
+  }
+
+  return ordered;
+}
+
+function buildContents(
+  history: Array<{ role: "user" | "assistant"; text?: string; image?: string }>,
+  prompt: { text?: string; imageBase64?: string }
+) {
+  const systemInstruction: Content = {
+    role: "user",
+    parts: [
+      {
+        text: `You are Jarvis, a proactive multimodal assistant. Refer to yourself as Jarvis when it adds clarity, but avoid repeating your identity in every reply. Only when a user directly asks who you are, what your name is, or who built you should you confirm that you are Jarvis, note that you were created by Ayaan, and share his GitHub profile at github.com/ayxn07. Otherwise respond naturally with concise, helpful guidance. Use **bold** markdown only when emphasis is essential so the UI can style it, and keep language natural for text-to-speech.`
+      }
+    ]
+  };
+
+  const historyContents: Content[] = history.map((item) => ({
+    role: item.role === "user" ? "user" : "model",
+    parts: buildParts(item)
+  }));
+
+  const finalUser: Content = {
+    role: "user",
+    parts: buildParts({ text: prompt.text, image: prompt.imageBase64 })
+  };
+
+  return [systemInstruction, ...historyContents, finalUser];
+}
+
 export async function GET() {
   return NextResponse.json({
-    message: "POST JSON with { text, imageBase64 } to chat with Gemini."
+    message: "POST JSON with { text, imageBase64, models? } to chat with Gemini."
   });
 }
 
@@ -84,62 +146,78 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request payload" }, { status: 400 });
   }
 
-  const { text, imageBase64, history, model } = parsed.data;
+  const { text, imageBase64, history, model, models } = parsed.data;
   if (!text && !imageBase64) {
     return NextResponse.json({ error: "Nothing to send" }, { status: 400 });
   }
 
-  const generativeModel = getClient().getGenerativeModel({
-    model: normalizeModel(model || process.env.GEMINI_MODEL),
-    generationConfig: {
-      temperature: 0.6,
-      maxOutputTokens: 2048,
-      topP: 0.95,
-      topK: 32
-    }
-  });
+  const targetModels = modelsToQuery(model || process.env.GEMINI_MODEL, models ?? []);
 
-  const contents: Content[] = history.map((item) => ({
-    role: item.role === "user" ? "user" : "model",
-    parts: buildParts(item)
-  }));
-  contents.unshift({
-    role: "user",
-    parts: [
-      {
-        text: `You are Jarvis, a proactive multimodal assistant. Refer to yourself as Jarvis when it adds clarity, but avoid repeating your identity in every reply. Only when a user directly asks who you are, what your name is, or who built you should you confirm that you are Jarvis, note that you were created by Ayaan, and share his GitHub profile at github.com/ayxn07. Otherwise respond naturally with concise, helpful guidance. Use **bold** markdown only when emphasis is essential so the UI can style it, and keep language natural for text-to-speech.`
+  const attemptModel = async (target: string): Promise<ModelResult> => {
+    const generativeModel = getClient().getGenerativeModel({
+      model: target,
+      generationConfig: {
+        temperature: 0.6,
+        maxOutputTokens: 2048,
+        topP: 0.95,
+        topK: 32
       }
-    ]
-  });
-  contents.push({ role: "user", parts: buildParts({ text, image: imageBase64 }) });
+    });
 
-  try {
-    const result = await generativeModel.generateContent({ contents });
-    const response = result.response;
+    try {
+      const result = await generativeModel.generateContent({
+        contents: buildContents(history, { text, imageBase64 })
+      });
+      const response = result.response;
 
-    if (response.promptFeedback?.blockReason) {
-      return NextResponse.json(
-        { error: `Gemini refused the request: ${response.promptFeedback.blockReason}` },
-        { status: 400 }
-      );
+      if (response.promptFeedback?.blockReason) {
+        return {
+          model: target,
+          error: `Gemini refused the request: ${response.promptFeedback.blockReason}`
+        };
+      }
+
+      const viaHelper = typeof response.text === "function" ? await response.text() : "";
+      const fallback =
+        response.candidates?.flatMap((candidate) =>
+          candidate.content?.parts?.map((part) => part.text ?? "") ?? []
+        ) ?? [];
+
+      const finalText = (viaHelper || fallback.join(" ") || "I do not have a response right now.").trim();
+
+      return {
+        model: target,
+        text: finalText.length > 0 ? finalText : "I do not have a response right now."
+      };
+    } catch (error) {
+      return {
+        model: target,
+        error: error instanceof Error ? error.message : "Gemini call failed"
+      };
     }
+  };
 
-    const viaHelper = typeof response.text === "function" ? await response.text() : "";
-    const fallback =
-      response.candidates?.flatMap((candidate) =>
-        candidate.content?.parts?.map((part) => part.text ?? "") ?? []
-      ) ?? [];
+  const results = await Promise.all(targetModels.map((target) => attemptModel(target)));
+  const successes = results.filter(isSuccess);
+  const failures = results.filter(isFailure);
 
-    const finalText = (viaHelper || fallback.join(" ") || "I do not have a response right now.").trim();
-
-    return NextResponse.json({ text: finalText.length > 0 ? finalText : "I do not have a response right now." });
-  } catch (error) {
-    console.error("Gemini call failed", error);
+  if (!successes.length) {
+    const firstFailure = failures[0];
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Gemini call failed" },
+      {
+        error: firstFailure?.error ?? "Gemini call failed",
+        failures
+      },
       { status: 500 }
     );
   }
+
+  const primary = successes[0];
+
+  return NextResponse.json({
+    outputs: successes,
+    primary,
+    text: primary.text,
+    failures: failures.length ? failures : undefined
+  });
 }
-
-

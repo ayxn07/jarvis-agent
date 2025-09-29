@@ -1,4 +1,4 @@
-import * as DialogPrimitive from "@radix-ui/react-dialog";
+﻿import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import * as React from "react";
 
@@ -28,12 +28,10 @@ const SheetOverlay = React.forwardRef<
 SheetOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const sheetVariants = {
-  top: "inset-x-0 top-0 border-b data-[state=open]:animate-in data-[state=closed]:animate-out",
-  bottom:
-    "inset-x-0 bottom-0 border-t data-[state=open]:animate-in data-[state=closed]:animate-out",
-  left: "inset-y-0 left-0 h-full w-80 border-r data-[state=open]:animate-in data-[state=closed]:animate-out",
-  right:
-    "inset-y-0 right-0 h-full w-96 border-l data-[state=open]:animate-in data-[state=closed]:animate-out"
+  top: "inset-x-0 top-0 border-b transform-gpu transition-transform duration-400 data-[state=closed]:-translate-y-full data-[state=open]:translate-y-0",
+  bottom: "inset-x-0 bottom-0 border-t transform-gpu transition-transform duration-400 data-[state=closed]:translate-y-full data-[state=open]:translate-y-0",
+  left: "inset-y-0 left-0 h-full w-80 border-r transform-gpu transition-transform duration-400 data-[state=closed]:-translate-x-full data-[state=open]:translate-x-0",
+  right: "inset-y-0 right-0 h-full w-96 border-l transform-gpu transition-transform duration-400 data-[state=closed]:translate-x-full data-[state=open]:translate-x-0"
 } as const;
 
 const SheetContent = React.forwardRef<
@@ -107,3 +105,8 @@ export {
   SheetDescription,
   SheetFooter
 };
+
+
+
+
+

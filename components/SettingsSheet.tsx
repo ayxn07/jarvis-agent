@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { motion } from "framer-motion";
 import { Settings } from "lucide-react";
@@ -11,7 +11,7 @@ import { Toggle } from "@/components/ui/toggle";
 import { useAgentStore } from "@/lib/stores/agent-store";
 
 export function SettingsSheet() {
-  const { settings, setSettings } = useAgentStore();
+  const { settings, setSettings, clearMessages } = useAgentStore();
 
   return (
     <Sheet>
@@ -81,13 +81,57 @@ export function SettingsSheet() {
               <p className="text-xs text-white/60">Target models and TTS voices drive Jarvis personality.</p>
             </header>
             <div className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="model">Primary model</Label>
+                  <Input
+                    id="model"
+                    value={settings.model}
+                    onChange={(event) => setSettings({ model: event.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="secondaryModel">Secondary model</Label>
+                  <Input
+                    id="secondaryModel"
+                    value={settings.secondaryModel}
+                    onChange={(event) => setSettings({ secondaryModel: event.target.value })}
+                  />
+                </div>
+              </div>
               <div className="space-y-2">
-                <Label htmlFor="model">Gemini model</Label>
+                <Label htmlFor="imageModel">Image model</Label>
                 <Input
-                  id="model"
-                  value={settings.model}
-                  onChange={(event) => setSettings({ model: event.target.value })}
+                  id="imageModel"
+                  value={settings.imageModel}
+                  onChange={(event) => setSettings({ imageModel: event.target.value })}
                 />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.3em] text-white/50">Dual preview</p>
+                    <p className="text-xs text-white/60">Show Flash and Pro responses side by side.</p>
+                  </div>
+                  <Toggle
+                    pressed={settings.dualModelPreview}
+                    onPressedChange={(pressed) => setSettings({ dualModelPreview: pressed })}
+                  >
+                    {settings.dualModelPreview ? "On" : "Off"}
+                  </Toggle>
+                </div>
+                <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.3em] text-white/50">Auto fallback</p>
+                    <p className="text-xs text-white/60">Escalate to Pro automatically on long prompts.</p>
+                  </div>
+                  <Toggle
+                    pressed={settings.autoFallbackLongform}
+                    onPressedChange={(pressed) => setSettings({ autoFallbackLongform: pressed })}
+                  >
+                    {settings.autoFallbackLongform ? "On" : "Off"}
+                  </Toggle>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="voice">Voice ID</Label>
@@ -114,7 +158,7 @@ export function SettingsSheet() {
               <h4 className="text-sm font-semibold text-white">Reset conversational context</h4>
               <p className="text-xs text-white/55">Clear transcripts and cached state from this device.</p>
             </div>
-            <Button variant="outline" className="border-white/30 text-white/80 transition hover:border-neon-magenta/60 hover:text-white">
+            <Button type="button" variant="outline" className="border-white/30 text-white/80 transition hover:border-neon-magenta/60 hover:text-white" onClick={clearMessages}>
               Clear Memory
             </Button>
           </motion.div>
@@ -123,4 +167,6 @@ export function SettingsSheet() {
     </Sheet>
   );
 }
+
+
 
