@@ -505,7 +505,7 @@ function ImageStudio({
         <div className="grid gap-3 sm:grid-cols-2">
           {images.map((image) => (
             <StarBorder
-              as="figure"
+
               key={image.id}
               color="#f472ff"
               className="space-y-2 overflow-hidden rounded-2xl border border-white/10 bg-black/30 p-3 text-xs text-white/70"
