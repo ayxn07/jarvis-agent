@@ -1,6 +1,8 @@
 ﻿"use client";
 
-import { AnimatedList, ScrollReveal, ShinyText, StarBorder } from "@appletosolutions/reactbits";
+import { AnimatedList } from "@/components/ui/animated-list";
+import { ShinyText } from "@/components/ui/shiny-text";
+import { StarBorder } from "@/components/ui/star-border";
 import { motion } from "framer-motion";
 import { BookOpen, Camera, Loader2, Sparkles, Workflow } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -90,10 +92,33 @@ export function HomePage() {
         description:
           "Let Jarvis sequence tools, call tutorials, and surface context windows while you stay focused on direction.",
         icon: Workflow
-      }
+      },
+      {
+        key: "collaboration",
+        title: "Seamless collaboration",
+        description:
+          "Share live sessions with teammates, annotate answers, and co-create ideas with synchronized updates.",
+        icon: Workflow
+      },
+      {
+        key: "memory",
+        title: "Persistent memory",
+        description:
+          "Jarvis remembers past interactions, adapts to your style, and brings context forward whenever you return.",
+        icon: Workflow
+      },
+      {
+        key: "security",
+        title: "Enterprise-grade security",
+        description:
+          "Your data stays encrypted with full compliance for enterprise workflows, ensuring trust and safety at scale.",
+        icon: Workflow
+      },
+
     ],
     []
   );
+
 
   const tutorialSteps = useMemo(
     () => [
@@ -233,14 +258,18 @@ ${suggestion}`;
               />
             </div>
           </div>
-          <div className="grid gap-5">
-            {heroFeatures.map((feature) => {
+          <div className="grid gap-5 ">
+            {heroFeatures.map((feature, index) => {
               const Icon = feature.icon;
               return (
-                <ScrollReveal key={feature.key}>
+                <motion.div
+                  key={feature.key}
+                  initial={{ opacity: 0, y: 24 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, ease: "easeOut", delay: index * 0.08 }}
+                  viewport={{ once: true, margin: "-80px" }}
+                >
                   <StarBorder
-                    as="div"
-                    color="#47f2ff"
                     className="group relative overflow-hidden rounded-3xl border border-white/10 bg-black/35 p-6 backdrop-blur-xl transition hover:border-neon-cyan/50"
                   >
                     <div className="flex items-start gap-4">
@@ -253,7 +282,7 @@ ${suggestion}`;
                       </div>
                     </div>
                   </StarBorder>
-                </ScrollReveal>
+                </motion.div>
               );
             })}
           </div>
@@ -262,15 +291,20 @@ ${suggestion}`;
 
       <section ref={tutorialSectionRef} className="grid gap-6 lg:grid-cols-3">
         {tutorialSteps.map((step, index) => (
-          <ScrollReveal key={step.title}>
-            <div className="relative h-full overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] p-6 backdrop-blur-xl">
-              <span className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-neon-magenta/15 text-sm font-semibold text-neon-magenta">
-                {String(index + 1).padStart(2, "0")}
-              </span>
-              <h3 className="text-lg font-semibold text-white">{step.title}</h3>
-              <p className="mt-3 text-sm leading-6 text-white/70">{step.description}</p>
-            </div>
-          </ScrollReveal>
+          <motion.div
+            key={step.title}
+            initial={{ opacity: 0, y: 28 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: "easeOut", delay: index * 0.1 }}
+            viewport={{ once: true, margin: "-80px" }}
+            className="relative h-full overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] p-6 backdrop-blur-xl"
+          >
+            <span className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-neon-magenta/15 text-sm font-semibold text-neon-magenta">
+              {String(index + 1).padStart(2, "0")}
+            </span>
+            <h3 className="text-lg font-semibold text-white">{step.title}</h3>
+            <p className="mt-3 text-sm leading-6 text-white/70">{step.description}</p>
+          </motion.div>
         ))}
       </section>
 
@@ -485,6 +519,11 @@ function ImageStudio({
     </div>
   );
 }
+
+
+
+
+
 
 
 

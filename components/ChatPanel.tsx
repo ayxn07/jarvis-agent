@@ -1,6 +1,6 @@
-﻿"use client";
+"use client";
 
-import { StarBorder } from "@appletosolutions/reactbits";
+import { StarBorder } from "@/components/ui/star-border";
 import { AnimatePresence, motion } from "framer-motion";
 import { Bot, Clock, Terminal, User } from "lucide-react";
 import { useCallback, useMemo, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
@@ -128,11 +128,9 @@ function MessageBubble({ message }: { message: AgentMessage }) {
       const altSegments = segmentSimpleMarkdown(item.text ?? "");
       const totalAltChars = countPlainTextLength(altSegments);
       const nodes = renderMarkdownSegments(altSegments, totalAltChars);
-      return (
+            return (
         <StarBorder
-          as="div"
           key={`${message.id}-${item.model}-${index}`}
-          color="#47f2ff"
           className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm leading-6 text-white/80 backdrop-blur-lg"
         >
           <header className="flex items-center gap-3 text-xs uppercase tracking-[0.3em] text-white/50">

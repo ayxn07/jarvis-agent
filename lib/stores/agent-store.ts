@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { create } from "zustand";
 import { devtools, persist } from "zustand/middleware";
@@ -62,7 +62,7 @@ export type AgentStore = {
 
 const DEFAULT_MODEL = "gemini-2.5-flash";
 const DEFAULT_SECONDARY_MODEL = "gemini-2.5-pro";
-const DEFAULT_IMAGE_MODEL = "imagen-3.0-generate";
+const DEFAULT_IMAGE_MODEL = "imagegeneration@005";
 const ENV_VOICE =
   process.env.NEXT_PUBLIC_ELEVENLABS_VOICE_ID ?? process.env.ELEVENLABS_VOICE_ID ?? "";
 
@@ -84,11 +84,25 @@ function normalizeGeminiModel(input?: string) {
 
 function normalizeImageModel(input?: string) {
   if (!input) return DEFAULT_IMAGE_MODEL;
-  const trimmed = input.trim();
+  let trimmed = input.trim();
   if (!trimmed) return DEFAULT_IMAGE_MODEL;
-  return trimmed;
-}
 
+  let lower = trimmed.toLowerCase();
+  if (lower.startsWith("models/")) {
+    trimmed = trimmed.slice(7);
+    lower = trimmed.toLowerCase();
+  }
+
+  if (lower.startsWith("imagen")) {
+    return DEFAULT_IMAGE_MODEL;
+  }
+
+  if (lower.startsWith("imagegeneration@")) {
+    return trimmed;
+  }
+
+  return DEFAULT_IMAGE_MODEL;
+}
 function normalizeVoiceId(input?: string) {
   if (!input) return "";
   const trimmed = input.trim();
@@ -201,3 +215,4 @@ export const useAgentStore = create<AgentStore>()(
     )
   )
 );
+

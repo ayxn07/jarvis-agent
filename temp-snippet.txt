@@ -1,0 +1,20 @@
+            {heroFeatures.map((feature) => {
+              const Icon = feature.icon;
+              return (
+                <ScrollReveal key={feature.key}>
+                  <StarBorder
+                    as="div"
+                    color="#47f2ff"
+                    className="group relative overflow-hidden rounded-3xl border border-white/10 bg-black/35 p-6 backdrop-blur-xl transition hover:border-neon-cyan/50"
+                  >
+                    <div className="flex items-start gap-4">
+                      <span className="rounded-2xl bg-neon-cyan/10 p-3 text-neon-cyan">
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      <div className="space-y-2">
+                        <h3 className="text-lg font-semibold text-white">{feature.title}</h3>
+                        <p className="text-sm leading-6 text-white/70">{feature.description}</p>
+                      </div>
+                    </div>
+                  </StarBorder>
+                </ScrollReveal>

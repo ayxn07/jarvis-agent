@@ -4,7 +4,7 @@ import { z } from "zod";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const DEFAULT_IMAGE_MODEL = "imagen-3.0-generate";
+const DEFAULT_IMAGE_MODEL = "imagegeneration@005";
 
 const requestSchema = z.object({
   prompt: z.string().min(1, "Prompt is required"),
@@ -16,12 +16,24 @@ const requestSchema = z.object({
 
 function normalizeImageModel(input?: string) {
   if (!input) return DEFAULT_IMAGE_MODEL;
-  const trimmed = input.trim();
+  let trimmed = input.trim();
   if (!trimmed) return DEFAULT_IMAGE_MODEL;
-  if (trimmed.toLowerCase().startsWith("models/")) {
-    return trimmed.slice(7);
+
+  let lower = trimmed.toLowerCase();
+  if (lower.startsWith("models/")) {
+    trimmed = trimmed.slice(7);
+    lower = trimmed.toLowerCase();
   }
-  return trimmed;
+
+  if (lower.startsWith("imagen")) {
+    return DEFAULT_IMAGE_MODEL;
+  }
+
+  if (lower.startsWith("imagegeneration@")) {
+    return trimmed;
+  }
+
+  return DEFAULT_IMAGE_MODEL;
 }
 
 export async function POST(request: Request) {
@@ -39,12 +51,13 @@ export async function POST(request: Request) {
   const targetModel = normalizeImageModel(model);
 
   const url = new URL(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(targetModel)}:generateImage`
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(targetModel)}:generate`
   );
   url.searchParams.set("key", process.env.GEMINI_API_KEY);
 
   const requestBody: Record<string, unknown> = {
-    prompt: { text: prompt }
+    prompt: { text: prompt },
+    imageCount: numberOfImages ?? 1
   };
 
   if (negativePrompt) {
@@ -52,9 +65,6 @@ export async function POST(request: Request) {
   }
   if (aspectRatio) {
     requestBody.aspectRatio = aspectRatio;
-  }
-  if (numberOfImages) {
-    requestBody.numberOfImages = numberOfImages;
   }
 
   const response = await fetch(url.toString(), {
@@ -73,17 +83,24 @@ export async function POST(request: Request) {
   }
 
   const data = (await response.json()) as {
-    generatedImages?: Array<{ b64?: string; mimeType?: string; id?: string }>;
+    images?: Array<{
+      image?: { base64Data?: string; mimeType?: string };
+      base64Data?: string;
+      b64?: string;
+      mimeType?: string;
+      fileUri?: string;
+    }>;
     promptFeedback?: unknown;
   };
 
-  const images = (data.generatedImages ?? [])
+  const images = (data.images ?? [])
     .map((item, index) => {
-      const base64 = item?.b64 ?? "";
-      const mimeType = item?.mimeType ?? "image/png";
+      const base64 =
+        item?.image?.base64Data ?? item?.base64Data ?? item?.b64 ?? "";
+      const mimeType = item?.image?.mimeType ?? item?.mimeType ?? "image/png";
       if (!base64) return null;
       return {
-        id: item?.id ?? `image-${index}`,
+        id: item?.fileUri ?? `image-${index}`,
         base64,
         mimeType,
         dataUrl: `data:${mimeType};base64,${base64}`
