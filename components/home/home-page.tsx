@@ -222,6 +222,7 @@ ${suggestion}`;
         <div className="pointer-events-none absolute -bottom-32 -right-32 h-72 w-72 rounded-full bg-neon-magenta/30 blur-3xl" />
         <div className="relative z-10 grid gap-12 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-6">
+
             <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/30 px-4 py-1 text-xs uppercase tracking-[0.3em] text-white/60">
               <Sparkles className="h-4 w-4 text-neon-cyan" />
               Launchpad
