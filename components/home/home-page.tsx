@@ -12,7 +12,7 @@ import { CameraDock } from "@/components/CameraDock";
 import { ChatPanel } from "@/components/ChatPanel";
 import { ToolTimeline } from "@/components/ToolTimeline";
 import { HeaderDock } from "@/components/HeaderDock";
-import ImageGenerator from "@/components/image/image-generator";
+import dynamic from "next/dynamic";
 import { SettingsSheet } from "@/components/SettingsSheet";
 import { VoiceButton } from "@/components/VoiceButton";
 import { useJarvisClient } from "@/lib/hooks/use-jarvis-client";
@@ -20,15 +20,16 @@ import { Button } from "@/components/ui/button";
 import { useAgentStore } from "@/lib/stores/agent-store";
 import SplashCursor from "../ui/SplashCursor";
 
+// Lazy-load heavy image generator to reduce initial thread work
+const ImageGenerator = dynamic(() => import("../image/image-generator"), {
+  ssr: false,
+  loading: () => <div className="h-48 rounded-xl border border-white/10 bg-white/5 animate-pulse" />
+});
+
 export function HomePage() {
   const agentSectionRef = useRef<HTMLDivElement | null>(null);
   const tutorialSectionRef = useRef<HTMLDivElement | null>(null);
-  const docsSectionRef = useRef<HTMLDivElement | null>(null);
-  const [activeDoc, setActiveDoc] = useState<string>("setup");
-  const asideWrapperRef = useRef<HTMLDivElement | null>(null);
-  const asideRef = useRef<HTMLDivElement | null>(null);
-  const [useFixedNav, setUseFixedNav] = useState(false);
-  const [fixedBox, setFixedBox] = useState<{ left: number; width: number; height: number }>({ left: 0, width: 0, height: 0 });
+  // Removed docs section/state for performance and simplicity
   const { messages, phase, connected, currentTranscriptPartial, settings } = useAgentStore();
   const {
     audioRef,
@@ -123,82 +124,7 @@ export function HomePage() {
     []
   );
 
-  // Documentation / Tutorial content structure
-  const docsSections = useMemo(
-    () => [
-      {
-        id: "setup",
-        title: "Setup & Models",
-        items: [
-          {
-            title: "API keys & env",
-            body:
-              "Set GEMINI_API_KEY in your environment. Optionally set IMAGE_MODEL or choose at runtime in Settings."
-          },
-          {
-            title: "Model selection",
-            body:
-              "Use the Settings panel to pick between faster or higher-fidelity models. The app persists your choice."
-          }
-        ]
-      },
-      {
-        id: "interact",
-        title: "Interact with Jarvis",
-        items: [
-          {
-            title: "Chat & Voice",
-            body:
-              "Type in the chat or press-and-hold the voice button to talk. The agent cycles through listening → thinking → speaking."
-          },
-          {
-            title: "Camera snaps",
-            body:
-              "Use Manual Snap to capture the current frame, or enable auto-frame in Settings for continuous vision context."
-          }
-        ]
-      },
-      {
-        id: "tools",
-        title: "Tools & Timeline",
-        items: [
-          {
-            title: "Tool lifecycle",
-            body:
-              "Every tool call logs to the timeline with running → success/error states, args, and results for quick auditing."
-          },
-          {
-            title: "Extensible endpoints",
-            body:
-              "Add new tools under /api/tools/* with Zod schemas. The UI will reflect them automatically in the timeline."
-          }
-        ]
-      },
-      {
-        id: "images",
-        title: "Image Generation",
-        items: [
-          {
-            title: "Prompt & model",
-            body:
-              "Open the Image Generator, enter a prompt, and pick a model. Download results and clear the canvas when done."
-          }
-        ]
-      },
-      {
-        id: "settings",
-        title: "Settings & Persistence",
-        items: [
-          {
-            title: "Tuning",
-            body:
-              "Choose voice, adjust frame rate, and toggle auto-frame capture. Preferences are persisted for your next session."
-          }
-        ]
-      }
-    ],
-    []
-  );
+  // Removed docs content
 
 
   const tutorialSteps = useMemo(
@@ -231,59 +157,11 @@ export function HomePage() {
     tutorialSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, []);
 
-  const scrollToDocs = useCallback(() => {
-    docsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, []);
+  // Removed docs scroll handler
 
-  // Observe doc sections to highlight active item in the sticky nav
-  useEffect(() => {
-    const sections = document.querySelectorAll<HTMLElement>('[id^="doc-"]');
-    if (!sections.length) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        // Find the entry most in view
-        const visible = entries
-          .filter((e) => e.isIntersecting && e.intersectionRatio > 0)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        if (visible?.target?.id) {
-          const id = visible.target.id.replace("doc-", "");
-          setActiveDoc(id);
-        }
-      },
-      {
-        root: null,
-        rootMargin: "-35% 0px -55% 0px",
-        threshold: [0, 0.25, 0.5, 0.75, 1]
-      }
-    );
-    sections.forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
-  }, []);
+  // Removed docs observer
 
-  // Pin docs nav to viewport using a fixed fallback when section is in view
-  useEffect(() => {
-    const onScrollResize = () => {
-      const docEl = docsSectionRef.current;
-      const wrap = asideWrapperRef.current;
-      const nav = asideRef.current;
-      if (!docEl || !wrap || !nav) return;
-      const docRect = docEl.getBoundingClientRect();
-      const wrapRect = wrap.getBoundingClientRect();
-      const maxH = Math.max(200, window.innerHeight - 16);
-      const navH = Math.min(nav.scrollHeight, maxH);
-      // Should fix when the docs section has reached the top and there's still room at the bottom
-      const shouldFix = docRect.top <= 8 && docRect.bottom - navH >= 16;
-      setUseFixedNav(shouldFix);
-      setFixedBox({ left: wrapRect.left, width: wrapRect.width, height: navH });
-    };
-    onScrollResize();
-    window.addEventListener("scroll", onScrollResize, { passive: true });
-    window.addEventListener("resize", onScrollResize);
-    return () => {
-      window.removeEventListener("scroll", onScrollResize);
-      window.removeEventListener("resize", onScrollResize);
-    };
-  }, []);
+  // Docs fixed nav effect removed
 
 
 
@@ -358,15 +236,7 @@ export function HomePage() {
                   Workflow tour
                 </Button>
               </motion.div>
-              <motion.div variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}>
-                <Button
-                  variant="link"
-                  onClick={scrollToDocs}
-                  className="rounded-full px-2 text-neon-magenta hover:text-neon-cyan"
-                >
-                  Documentation
-                </Button>
-              </motion.div>
+              {/* Docs link removed */}
             </motion.div>
             <div className="rounded-3xl border border-white/10 bg-black/30 p-4 backdrop-blur-xl">
               <div className="mb-3 flex items-center gap-2 text-xs uppercase tracking-[0.3em] text-white/45">
@@ -412,73 +282,7 @@ export function HomePage() {
         </div>
       </section>
 
-      {/* Documentation / Tutorials Section */}
-      <section ref={docsSectionRef} id="documentation" className="relative grid items-start gap-8 lg:grid-cols-[minmax(240px,280px)_1fr]">
-        <aside className="self-start">
-          <div ref={asideWrapperRef} style={{ minHeight: useFixedNav ? fixedBox.height : undefined }}>
-            <div
-              ref={asideRef}
-              className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-md overflow-auto"
-              style={
-                useFixedNav
-                  ? { position: "fixed", top: 0, left: fixedBox.left, width: fixedBox.width, maxHeight: "calc(100vh)", zIndex: 50 }
-                  : { position: "sticky" as const, top: 0, maxHeight: "calc(100vh)", zIndex: 30 }
-              }
-            >
-              <p className="mb-3 text-xs uppercase tracking-[0.35em] text-white/50">Docs</p>
-              <nav className="grid gap-2">
-                {docsSections.map((sec) => {
-                  const isActive = activeDoc === sec.id;
-                  return (
-                    <button
-                      key={sec.id}
-                      onClick={() => document.getElementById(`doc-${sec.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                      className={[
-                        "w-full rounded-xl px-3 py-2 text-left text-sm transition",
-                        isActive
-                          ? "border border-neon-magenta/60 bg-neon-magenta/10 text-white"
-                          : "border border-white/10 bg-white/5 text-white/70 hover:border-neon-magenta/60 hover:text-white"
-                      ].join(" ")}
-                    >
-                      {sec.title}
-                    </button>
-                  );
-                })}
-              </nav>
-            </div>
-          </div>
-        </aside>
-        <div className="grid gap-6 min-h-[150vh]">
-          {docsSections.map((sec, idx) => (
-            <motion.article
-              id={`doc-${sec.id}`}
-              key={sec.id}
-              className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] p-6 backdrop-blur-xl"
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-100px" }}
-              transition={{ duration: 0.45, ease: "easeOut", delay: Math.min(idx * 0.05, 0.2) }}
-            >
-              <h3 className="mb-2 text-lg font-semibold text-white">{sec.title}</h3>
-              <div className="grid gap-3">
-                {sec.items.map((it) => (
-                  <motion.div
-                    key={it.title}
-                    className="rounded-2xl border border-white/10 bg-black/30 p-4"
-                    initial={{ opacity: 0, y: 12 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true, margin: "-120px" }}
-                    transition={{ duration: 0.35, ease: "easeOut" }}
-                  >
-                    <p className="text-sm font-semibold text-neon-magenta">{it.title}</p>
-                    <p className="mt-1 text-sm text-white/75">{it.body}</p>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.article>
-          ))}
-        </div>
-      </section>
+      {/* Documentation section removed */}
 
       <section ref={tutorialSectionRef} className="grid gap-6 lg:grid-cols-3">
         {tutorialSteps.map((step, index) => (

@@ -54,7 +54,7 @@ function pointerPrototype(): Pointer {
 
 export default function SplashCursor({
   SIM_RESOLUTION = 128,
-  DYE_RESOLUTION = 1440,
+  DYE_RESOLUTION = 720,
   CAPTURE_RESOLUTION = 512,
   DENSITY_DISSIPATION = 3.5,
   VELOCITY_DISSIPATION = 2,
@@ -853,14 +853,22 @@ export default function SplashCursor({
     let lastUpdateTime = Date.now();
     let colorUpdateTimer = 0.0;
 
+    let paused = false;
+    let rafId: number | null = null;
+    let lastHidden = false;
+
     function updateFrame() {
+      if (paused) {
+        rafId = requestAnimationFrame(updateFrame);
+        return;
+      }
       const dt = calcDeltaTime();
       if (resizeCanvas()) initFramebuffers();
       updateColors(dt);
       applyInputs();
       step(dt);
       render(null);
-      requestAnimationFrame(updateFrame);
+      rafId = requestAnimationFrame(updateFrame);
     }
 
     function calcDeltaTime() {
@@ -1205,7 +1213,6 @@ export default function SplashCursor({
       const posX = scaleByPixelRatio(e.clientX);
       const posY = scaleByPixelRatio(e.clientY);
       const color = generateColor();
-      updateFrame();
       updatePointerMoveData(pointer, posX, posY, color);
       document.body.removeEventListener('mousemove', handleFirstMouseMove);
     }
@@ -1225,7 +1232,6 @@ export default function SplashCursor({
       for (let i = 0; i < touches.length; i++) {
         const posX = scaleByPixelRatio(touches[i].clientX);
         const posY = scaleByPixelRatio(touches[i].clientY);
-        updateFrame();
         updatePointerDownData(pointer, touches[i].identifier, posX, posY);
       }
       document.body.removeEventListener('touchstart', handleFirstTouchStart);
@@ -1267,6 +1273,36 @@ export default function SplashCursor({
         updatePointerUpData(pointer);
       }
     });
+
+    const onScroll = () => {
+      // Throttle the fluid sim during intense scrolls to reduce jank
+      paused = true;
+      if (rafId == null) rafId = requestAnimationFrame(updateFrame);
+      window.clearTimeout((onScroll as any)._t);
+      (onScroll as any)._t = window.setTimeout(() => {
+        paused = false;
+      }, 120);
+    };
+    const onVisibility = () => {
+      const hidden = document.hidden;
+      if (hidden && !lastHidden) {
+        paused = true;
+      } else if (!hidden && lastHidden) {
+        paused = false;
+      }
+      lastHidden = hidden;
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    document.addEventListener('visibilitychange', onVisibility);
+
+    // Kick off loop
+    rafId = requestAnimationFrame(updateFrame);
+
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      window.removeEventListener('scroll', onScroll as any);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [
     SIM_RESOLUTION,
     DYE_RESOLUTION,
