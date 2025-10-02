@@ -35,7 +35,7 @@ export function HeaderDock({
     <div className="flex items-center justify-between rounded-3xl border border-white/10 bg-white/5/70 p-4 backdrop-blur-xl">
       <div className="flex items-center gap-3">
         <motion.div
-          className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-neon-cyan/60 to-neon-magenta/60 text-white shadow-[0_0_25px_rgba(0,240,255,0.4)]"
+          className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-neon-cyan/60 to-neon-magenta/60 text-white shadow-[0_0_25px_rgba(0,171,255,0.4)]"
           initial={{ rotate: -12, scale: 0.92 }}
           animate={{ rotate: 0, scale: 1 }}
           transition={{ type: "spring", stiffness: 140, damping: 12 }}

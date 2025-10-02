@@ -99,14 +99,7 @@ export function SettingsSheet() {
                   />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="imageModel">Image model</Label>
-                <Input
-                  id="imageModel"
-                  value={settings.imageModel}
-                  onChange={(event) => setSettings({ imageModel: event.target.value })}
-                />
-              </div>
+              
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
                   <div>

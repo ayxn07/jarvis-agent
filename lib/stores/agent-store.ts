@@ -37,7 +37,6 @@ export type AgentSettings = {
   secondaryModel: string;
   dualModelPreview: boolean;
   autoFallbackLongform: boolean;
-  imageModel: string;
   speechRate: number;
 };
 
@@ -62,7 +61,6 @@ export type AgentStore = {
 
 const DEFAULT_MODEL = "gemini-2.5-flash";
 const DEFAULT_SECONDARY_MODEL = "gemini-2.5-pro";
-const DEFAULT_IMAGE_MODEL = "imagegeneration@005";
 const ENV_VOICE =
   process.env.NEXT_PUBLIC_ELEVENLABS_VOICE_ID ?? process.env.ELEVENLABS_VOICE_ID ?? "";
 
@@ -82,27 +80,6 @@ function normalizeGeminiModel(input?: string) {
   return lower;
 }
 
-function normalizeImageModel(input?: string) {
-  if (!input) return DEFAULT_IMAGE_MODEL;
-  let trimmed = input.trim();
-  if (!trimmed) return DEFAULT_IMAGE_MODEL;
-
-  let lower = trimmed.toLowerCase();
-  if (lower.startsWith("models/")) {
-    trimmed = trimmed.slice(7);
-    lower = trimmed.toLowerCase();
-  }
-
-  if (lower.startsWith("imagen")) {
-    return DEFAULT_IMAGE_MODEL;
-  }
-
-  if (lower.startsWith("imagegeneration@")) {
-    return trimmed;
-  }
-
-  return DEFAULT_IMAGE_MODEL;
-}
 function normalizeVoiceId(input?: string) {
   if (!input) return "";
   const trimmed = input.trim();
@@ -120,7 +97,6 @@ const defaultSettings: AgentSettings = {
   secondaryModel: normalizeGeminiModel(process.env.NEXT_PUBLIC_GEMINI_SECONDARY_MODEL ?? DEFAULT_SECONDARY_MODEL),
   dualModelPreview: false,
   autoFallbackLongform: true,
-  imageModel: normalizeImageModel(process.env.NEXT_PUBLIC_GEMINI_IMAGE_MODEL ?? DEFAULT_IMAGE_MODEL),
   speechRate: 1
 };
 
@@ -181,9 +157,7 @@ export const useAgentStore = create<AgentStore>()(
             if (patch.voice !== undefined) {
               next.voice = normalizeVoiceId(patch.voice);
             }
-            if (patch.imageModel !== undefined) {
-              next.imageModel = normalizeImageModel(patch.imageModel);
-            }
+            // imageModel removed
             if (patch.dualModelPreview !== undefined) {
               next.dualModelPreview = patch.dualModelPreview;
             }
@@ -209,7 +183,7 @@ export const useAgentStore = create<AgentStore>()(
           state.settings.dualModelPreview = Boolean(state.settings.dualModelPreview);
           state.settings.autoFallbackLongform =
             state.settings.autoFallbackLongform === undefined ? true : Boolean(state.settings.autoFallbackLongform);
-          state.settings.imageModel = normalizeImageModel(state.settings.imageModel ?? DEFAULT_IMAGE_MODEL);
+          // imageModel removed from settings; ignore if present
         }
       }
     )

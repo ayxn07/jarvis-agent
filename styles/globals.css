@@ -46,19 +46,42 @@
   }
 
   ::selection {
-    background: rgba(0, 240, 255, 0.25);
+    background: rgba(0, 209, 255, 0.25);
   }
 }
+
 @layer base {
   @keyframes shine {
     0% {
       background-position: 0% 50%;
     }
+
     50% {
       background-position: 100% 50%;
     }
+
     100% {
       background-position: 0% 50%;
+    }
+  }
+}
+
+@layer utilities {
+  @keyframes pulseGlow {
+    0% {
+      filter: hue-rotate(0deg) saturate(1) brightness(1) drop-shadow(0 0 0px rgba(0, 209, 255, 0.0));
+      transform: scale(1);
+    }
+
+    50% {
+      /* gentle color shift toward magenta + stronger glow */
+      filter: hue-rotate(25deg) saturate(1.25) brightness(1.08) drop-shadow(0 0 12px rgba(255, 0, 176, 0.4));
+      transform: scale(1.01);
+    }
+
+    100% {
+      filter: hue-rotate(0deg) saturate(1) brightness(1) drop-shadow(0 0 0px rgba(0, 209, 255, 0.0));
+      transform: scale(1);
     }
   }
 }

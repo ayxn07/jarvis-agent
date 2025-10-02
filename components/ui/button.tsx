@@ -12,7 +12,7 @@ const buttonVariants = cva(
         default:
           "bg-white/10 text-foreground hover:bg-white/20 hover:shadow-neon-ring",
         neon:
-          "bg-gradient-to-r from-neon-cyan/80 to-neon-magenta/80 text-white shadow-[0_0_15px_rgba(0,240,255,0.4)] hover:shadow-[0_0_25px_rgba(255,78,205,0.6)]",
+          "bg-gradient-to-r from-neon-cyan/80 to-neon-magenta/80 text-white shadow-[0_0_15px_rgba(0,171,255,0.4)] hover:shadow-[0_0_25px_rgba(255,0,176,0.6)]",
         outline:
           "border border-white/20 bg-transparent text-foreground hover:bg-white/10",
         ghost: "bg-transparent text-foreground hover:bg-white/10",
@@ -34,7 +34,7 @@ const buttonVariants = cva(
 
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
+  VariantProps<typeof buttonVariants> {
   asChild?: boolean;
 }
 

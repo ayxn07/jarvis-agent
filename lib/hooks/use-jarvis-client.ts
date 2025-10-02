@@ -770,6 +770,16 @@ export function useJarvisClient() {
         });
         await handleAssistantReply(response);
 
+        const toolMessageId = crypto.randomUUID();
+        addMessage({
+          id: toolMessageId,
+          role: "tool",
+          ts: Date.now(),
+          toolName: "describe_scene",
+          toolCall: { name: "describe_scene", args: { detailLevel } },
+          text: `**${formatToolName("describe_scene")} running…**`
+        });
+
         try {
           const toolResponse = await fetch("/api/tools/describe-scene", {
             method: "POST",
@@ -782,15 +792,24 @@ export function useJarvisClient() {
               typeof errorBody.error === "string"
                 ? errorBody.error
                 : `describe_scene failed (${toolResponse.status})`;
-            recordToolEvent("describe_scene", { detailLevel }, { status: "error", error: message });
+            updateMessage(toolMessageId, {
+              text: `**${formatToolName("describe_scene")} failed.** ${message}`,
+              toolResult: { error: message }
+            });
           } else {
             const toolPayload = await toolResponse.json();
-            recordToolEvent("describe_scene", { detailLevel }, { status: "success", result: toolPayload });
+            updateMessage(toolMessageId, {
+              text: `**${formatToolName("describe_scene")} executed.** Output captured in the timeline.`,
+              toolResult: toolPayload
+            });
           }
         } catch (toolError) {
           const message =
             toolError instanceof Error ? toolError.message : "describe_scene tool failed";
-          recordToolEvent("describe_scene", { detailLevel }, { status: "error", error: message });
+          updateMessage(toolMessageId, {
+            text: `**${formatToolName("describe_scene")} failed.** ${message}`,
+            toolResult: { error: message }
+          });
         }
       } catch (error) {
         console.error(error);
@@ -819,41 +838,7 @@ export function useJarvisClient() {
     return () => window.clearInterval(interval);
   }, [captureAndSendFrame, settings.autoFrame, settings.frameRate]);
 
-  const generateImages = useCallback(
-    async ({ prompt, aspectRatio, negativePrompt, count }: { prompt: string; aspectRatio?: string; negativePrompt?: string; count?: number }) => {
-      const trimmedPrompt = prompt.trim();
-      if (!trimmedPrompt) {
-        throw new Error("Prompt is required to generate an image");
-      }
-
-      const res = await fetch("/api/gemini/image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: trimmedPrompt,
-          aspectRatio: aspectRatio?.trim() || undefined,
-          negativePrompt: negativePrompt?.trim() || undefined,
-          numberOfImages: count && count > 0 ? Math.min(count, 4) : 1,
-          model: settings.imageModel
-        })
-      });
-
-      if (!res.ok) {
-        const errorBody = await res.json().catch(() => ({}));
-        const message = (errorBody as { error?: string }).error ?? "Image generation failed";
-        throw new Error(message);
-      }
-
-      const data = (await res.json()) as {
-        images: Array<{ id: string; base64: string; mimeType: string; dataUrl: string }>;
-        model: string;
-        promptFeedback?: unknown;
-      };
-
-      return data;
-    },
-    [settings.imageModel]
-  );
+  
 
   return {
     audioRef,
@@ -864,7 +849,6 @@ export function useJarvisClient() {
     sendUserText,
     sendControlEvent,
     captureAndSendFrame,
-    generateImages,
     attachVideo
   };
 }

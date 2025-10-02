@@ -4,7 +4,7 @@ import { AnimatedList } from "@/components/ui/animated-list";
 import { ShinyText } from "@/components/ui/shiny-text";
 import { StarBorder } from "@/components/ui/star-border";
 import { motion } from "framer-motion";
-import { BookOpen, Camera, Loader2, Sparkles, Workflow } from "lucide-react";
+import { BookOpen, Camera, Sparkles, Workflow } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AudioVisualizer } from "@/components/AudioVisualizer";
@@ -12,17 +12,23 @@ import { CameraDock } from "@/components/CameraDock";
 import { ChatPanel } from "@/components/ChatPanel";
 import { ToolTimeline } from "@/components/ToolTimeline";
 import { HeaderDock } from "@/components/HeaderDock";
+import ImageGenerator from "@/components/image/image-generator";
 import { SettingsSheet } from "@/components/SettingsSheet";
 import { VoiceButton } from "@/components/VoiceButton";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useJarvisClient } from "@/lib/hooks/use-jarvis-client";
+import { Button } from "@/components/ui/button";
 import { useAgentStore } from "@/lib/stores/agent-store";
+import SplashCursor from "../ui/SplashCursor";
 
 export function HomePage() {
   const agentSectionRef = useRef<HTMLDivElement | null>(null);
   const tutorialSectionRef = useRef<HTMLDivElement | null>(null);
+  const docsSectionRef = useRef<HTMLDivElement | null>(null);
+  const [activeDoc, setActiveDoc] = useState<string>("setup");
+  const asideWrapperRef = useRef<HTMLDivElement | null>(null);
+  const asideRef = useRef<HTMLDivElement | null>(null);
+  const [useFixedNav, setUseFixedNav] = useState(false);
+  const [fixedBox, setFixedBox] = useState<{ left: number; width: number; height: number }>({ left: 0, width: 0, height: 0 });
   const { messages, phase, connected, currentTranscriptPartial, settings } = useAgentStore();
   const {
     audioRef,
@@ -32,16 +38,14 @@ export function HomePage() {
     sendUserText,
     sendControlEvent,
     captureAndSendFrame,
-    generateImages,
     attachVideo
   } = useJarvisClient();
   const [cameraBusy, setCameraBusy] = useState(false);
-  const [imagePrompt, setImagePrompt] = useState("");
-  const [imageAspectRatio, setImageAspectRatio] = useState("16:9");
-  const [imageCount, setImageCount] = useState(1);
-  const [imageResults, setImageResults] = useState<Array<{ id: string; dataUrl: string; mimeType: string }>>([]);
-  const [imageLoading, setImageLoading] = useState(false);
-  const [imageError, setImageError] = useState<string | null>(null);
+  const quickPrompts = useMemo(() => [
+    "Draft a rollout plan and compare Flash vs Pro guidance.",
+    "Summarize the current screen from a Manual Snap.",
+    "Walk me through enabling automatic frame capture."
+  ], []);
 
   useEffect(() => {
     connect().catch((error) => console.error("Autoconnect failed", error));
@@ -119,6 +123,83 @@ export function HomePage() {
     []
   );
 
+  // Documentation / Tutorial content structure
+  const docsSections = useMemo(
+    () => [
+      {
+        id: "setup",
+        title: "Setup & Models",
+        items: [
+          {
+            title: "API keys & env",
+            body:
+              "Set GEMINI_API_KEY in your environment. Optionally set IMAGE_MODEL or choose at runtime in Settings."
+          },
+          {
+            title: "Model selection",
+            body:
+              "Use the Settings panel to pick between faster or higher-fidelity models. The app persists your choice."
+          }
+        ]
+      },
+      {
+        id: "interact",
+        title: "Interact with Jarvis",
+        items: [
+          {
+            title: "Chat & Voice",
+            body:
+              "Type in the chat or press-and-hold the voice button to talk. The agent cycles through listening → thinking → speaking."
+          },
+          {
+            title: "Camera snaps",
+            body:
+              "Use Manual Snap to capture the current frame, or enable auto-frame in Settings for continuous vision context."
+          }
+        ]
+      },
+      {
+        id: "tools",
+        title: "Tools & Timeline",
+        items: [
+          {
+            title: "Tool lifecycle",
+            body:
+              "Every tool call logs to the timeline with running → success/error states, args, and results for quick auditing."
+          },
+          {
+            title: "Extensible endpoints",
+            body:
+              "Add new tools under /api/tools/* with Zod schemas. The UI will reflect them automatically in the timeline."
+          }
+        ]
+      },
+      {
+        id: "images",
+        title: "Image Generation",
+        items: [
+          {
+            title: "Prompt & model",
+            body:
+              "Open the Image Generator, enter a prompt, and pick a model. Download results and clear the canvas when done."
+          }
+        ]
+      },
+      {
+        id: "settings",
+        title: "Settings & Persistence",
+        items: [
+          {
+            title: "Tuning",
+            body:
+              "Choose voice, adjust frame rate, and toggle auto-frame capture. Preferences are persisted for your next session."
+          }
+        ]
+      }
+    ],
+    []
+  );
+
 
   const tutorialSteps = useMemo(
     () => [
@@ -135,31 +216,12 @@ export function HomePage() {
       {
         title: "Audit the trail",
         description:
-          "Use the tool timeline to inspect fallbacks, generated imagery, and recommended follow-up prompts without leaving the flow."
+          "Use the tool timeline to inspect fallbacks and recommended follow-up prompts without leaving the flow."
       }
     ],
     []
   );
 
-  const quickPrompts = useMemo(
-    () => [
-      "Draft a rollout plan and compare Flash vs Pro guidance.",
-      "Summarize the current screen from a Manual Snap.",
-      "Generate UI imagery for a neon glassmorphism dashboard.",
-      "Walk me through enabling automatic frame capture."
-    ],
-    []
-  );
-
-  const imageSuggestions = useMemo(
-    () => [
-      "Cinematic neon glassmorphism control room",
-      "Isometric product hero with holographic overlays",
-      "Dark UI dashboard rendered with volumetric lighting",
-      "Minimal wireframe workspace with cyan accent glow"
-    ],
-    []
-  );
 
   const scrollToAgent = useCallback(() => {
     agentSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -169,86 +231,146 @@ export function HomePage() {
     tutorialSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, []);
 
-  const handleImageSuggestion = useCallback((suggestion: string) => {
-    setImagePrompt((current) => {
-      if (!current.trim()) return suggestion;
-      if (current.toLowerCase().includes(suggestion.toLowerCase())) return current;
-      return `${current.trim()}
-${suggestion}`;
-    });
+  const scrollToDocs = useCallback(() => {
+    docsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
-  const handleGenerateImages = useCallback(async () => {
-    const trimmed = imagePrompt.trim();
-    if (!trimmed) {
-      setImageError("Add a prompt to generate imagery.");
-      return;
-    }
-    try {
-      setImageLoading(true);
-      setImageError(null);
-      const data = await generateImages({
-        prompt: trimmed,
-        aspectRatio: imageAspectRatio,
-        count: Math.min(Math.max(imageCount, 1), 4)
-      });
-      setImageResults(data.images ?? []);
-    } catch (error) {
-      setImageError(error instanceof Error ? error.message : "Image generation failed");
-    } finally {
-      setImageLoading(false);
-    }
-  }, [generateImages, imageAspectRatio, imageCount, imagePrompt]);
-
-  const resetImageStudio = useCallback(() => {
-    setImagePrompt("");
-    setImageAspectRatio("16:9");
-    setImageCount(1);
-    setImageResults([]);
-    setImageError(null);
-    setImageLoading(false);
+  // Observe doc sections to highlight active item in the sticky nav
+  useEffect(() => {
+    const sections = document.querySelectorAll<HTMLElement>('[id^="doc-"]');
+    if (!sections.length) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // Find the entry most in view
+        const visible = entries
+          .filter((e) => e.isIntersecting && e.intersectionRatio > 0)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (visible?.target?.id) {
+          const id = visible.target.id.replace("doc-", "");
+          setActiveDoc(id);
+        }
+      },
+      {
+        root: null,
+        rootMargin: "-35% 0px -55% 0px",
+        threshold: [0, 0.25, 0.5, 0.75, 1]
+      }
+    );
+    sections.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
   }, []);
+
+  // Pin docs nav to viewport using a fixed fallback when section is in view
+  useEffect(() => {
+    const onScrollResize = () => {
+      const docEl = docsSectionRef.current;
+      const wrap = asideWrapperRef.current;
+      const nav = asideRef.current;
+      if (!docEl || !wrap || !nav) return;
+      const docRect = docEl.getBoundingClientRect();
+      const wrapRect = wrap.getBoundingClientRect();
+      const maxH = Math.max(200, window.innerHeight - 16);
+      const navH = Math.min(nav.scrollHeight, maxH);
+      // Should fix when the docs section has reached the top and there's still room at the bottom
+      const shouldFix = docRect.top <= 8 && docRect.bottom - navH >= 16;
+      setUseFixedNav(shouldFix);
+      setFixedBox({ left: wrapRect.left, width: wrapRect.width, height: navH });
+    };
+    onScrollResize();
+    window.addEventListener("scroll", onScrollResize, { passive: true });
+    window.addEventListener("resize", onScrollResize);
+    return () => {
+      window.removeEventListener("scroll", onScrollResize);
+      window.removeEventListener("resize", onScrollResize);
+    };
+  }, []);
+
+
+
+
+
+
   return (
     <div className="relative flex min-h-screen w-full flex-col gap-16 pb-24">
+      <SplashCursor />
       <motion.div
-        className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br from-neon-cyan/15 via-transparent to-neon-magenta/20"
+        className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br from-neon-magenta/20 via-neon-cyan/10 to-neon-magenta/25"
         initial={{ opacity: 0.35, scale: 0.96 }}
         animate={{ opacity: [0.3, 0.55, 0.3], scale: [0.94, 1.03, 0.94] }}
         transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
       />
 
       <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-8 shadow-[0_0_60px_rgba(36,3,58,0.35)] sm:p-12">
-        <div className="pointer-events-none absolute -top-24 -left-28 h-64 w-64 rounded-full bg-neon-cyan/30 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-32 -right-32 h-72 w-72 rounded-full bg-neon-magenta/30 blur-3xl" />
+        <div className="pointer-events-none absolute -top-24 -left-28 h-64 w-64 rounded-full bg-neon-magenta/25 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-32 -right-32 h-72 w-72 rounded-full bg-neon-cyan/20 blur-3xl" />
         <div className="relative z-10 grid gap-12 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-6">
 
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/30 px-4 py-1 text-xs uppercase tracking-[0.3em] text-white/60">
-              <Sparkles className="h-4 w-4 text-neon-cyan" />
+            <motion.div
+              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/30 px-4 py-1 text-xs uppercase tracking-[0.3em] text-white/60"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+            >
+              <Sparkles className="h-4 w-4 text-neon-magenta" />
               Launchpad
-            </div>
-            <ShinyText text="Jarvis orchestrates Gemini multimodal" className="text-sm font-medium text-white/80" />
-            <h1 className="text-4xl font-semibold leading-tight tracking-tight text-white sm:text-5xl">
-              Deploy an agentic cockpit where <span className="text-neon-cyan">Gemini 2.5 Flash</span> and Pro collaborate while Jarvis automates the busywork.
-            </h1>
-            <p className="max-w-xl text-lg text-white/70">
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: "easeOut", delay: 0.05 }}
+            >
+              <ShinyText pulse text="Jarvis orchestrates Gemini multimodal" className="text-sm font-medium text-white/80" />
+            </motion.div>
+            <motion.h1
+              className="text-4xl font-semibold leading-tight tracking-tight text-white sm:text-5xl"
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.55, ease: "easeOut", delay: 0.1 }}
+            >
+              Deploy an agentic cockpit where <span className="text-neon-magenta">Gemini 2.5 Flash</span> and Pro collaborate while Jarvis automates the busywork.
+            </motion.h1>
+            <motion.p
+              className="max-w-xl text-lg text-white/70"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.55, ease: "easeOut", delay: 0.18 }}
+            >
               Compare streamed responses, auto-capture context, and watch Jarvis stitch tutorials, tools, and telemetry into one live console.
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <Button onClick={scrollToAgent} className="gap-2 rounded-full bg-neon-cyan/90 px-6 py-2 text-black transition hover:bg-neon-cyan">
-                Try Jarvis
-              </Button>
-              <Button
-                variant="outline"
-                onClick={scrollToTutorials}
-                className="rounded-full border-white/25 px-6 py-2 text-white/80 transition hover:border-neon-magenta/60 hover:text-white"
-              >
-                Workflow tour
-              </Button>
-            </div>
+            </motion.p>
+            <motion.div
+              className="flex flex-wrap gap-3"
+              initial="hidden"
+              animate="show"
+              variants={{ hidden: {}, show: { transition: { staggerChildren: 0.08 } } }}
+            >
+              <motion.div variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}>
+                <Button onClick={scrollToAgent} variant="neon" className="gap-2 rounded-full px-6 py-2 transition hover:scale-[1.02]">
+                  Try Jarvis
+                </Button>
+              </motion.div>
+              <motion.div variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}>
+                <Button
+                  variant="outline"
+                  onClick={scrollToTutorials}
+                  className="rounded-full border-white/25 px-6 py-2 text-white/80 transition hover:border-neon-magenta/70 hover:text-white hover:scale-[1.02]"
+                >
+                  Workflow tour
+                </Button>
+              </motion.div>
+              <motion.div variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}>
+                <Button
+                  variant="link"
+                  onClick={scrollToDocs}
+                  className="rounded-full px-2 text-neon-magenta hover:text-neon-cyan"
+                >
+                  Documentation
+                </Button>
+              </motion.div>
+            </motion.div>
             <div className="rounded-3xl border border-white/10 bg-black/30 p-4 backdrop-blur-xl">
               <div className="mb-3 flex items-center gap-2 text-xs uppercase tracking-[0.3em] text-white/45">
-                <BookOpen className="h-4 w-4 text-neon-magenta" />
+                <BookOpen className="h-4 w-4 text-neon-cyan" />
                 Starter prompts
               </div>
               <AnimatedList
@@ -271,10 +393,10 @@ ${suggestion}`;
                   viewport={{ once: true, margin: "-80px" }}
                 >
                   <StarBorder
-                    className="group relative overflow-hidden rounded-3xl border border-white/10 bg-black/35 p-6 backdrop-blur-xl transition hover:border-neon-cyan/50"
+                    className="group relative overflow-hidden rounded-3xl border border-white/10 bg-black/35 p-6 backdrop-blur-xl transition hover:border-neon-magenta/60"
                   >
                     <div className="flex items-start gap-4">
-                      <span className="rounded-2xl bg-neon-cyan/10 p-3 text-neon-cyan">
+                      <span className="rounded-2xl bg-neon-magenta/10 p-3 text-neon-magenta">
                         <Icon className="h-5 w-5" />
                       </span>
                       <div className="space-y-2">
@@ -287,6 +409,74 @@ ${suggestion}`;
               );
             })}
           </div>
+        </div>
+      </section>
+
+      {/* Documentation / Tutorials Section */}
+      <section ref={docsSectionRef} id="documentation" className="relative grid items-start gap-8 lg:grid-cols-[minmax(240px,280px)_1fr]">
+        <aside className="self-start">
+          <div ref={asideWrapperRef} style={{ minHeight: useFixedNav ? fixedBox.height : undefined }}>
+            <div
+              ref={asideRef}
+              className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-md overflow-auto"
+              style={
+                useFixedNav
+                  ? { position: "fixed", top: 0, left: fixedBox.left, width: fixedBox.width, maxHeight: "calc(100vh)", zIndex: 50 }
+                  : { position: "sticky" as const, top: 0, maxHeight: "calc(100vh)", zIndex: 30 }
+              }
+            >
+              <p className="mb-3 text-xs uppercase tracking-[0.35em] text-white/50">Docs</p>
+              <nav className="grid gap-2">
+                {docsSections.map((sec) => {
+                  const isActive = activeDoc === sec.id;
+                  return (
+                    <button
+                      key={sec.id}
+                      onClick={() => document.getElementById(`doc-${sec.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                      className={[
+                        "w-full rounded-xl px-3 py-2 text-left text-sm transition",
+                        isActive
+                          ? "border border-neon-magenta/60 bg-neon-magenta/10 text-white"
+                          : "border border-white/10 bg-white/5 text-white/70 hover:border-neon-magenta/60 hover:text-white"
+                      ].join(" ")}
+                    >
+                      {sec.title}
+                    </button>
+                  );
+                })}
+              </nav>
+            </div>
+          </div>
+        </aside>
+        <div className="grid gap-6 min-h-[150vh]">
+          {docsSections.map((sec, idx) => (
+            <motion.article
+              id={`doc-${sec.id}`}
+              key={sec.id}
+              className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] p-6 backdrop-blur-xl"
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.45, ease: "easeOut", delay: Math.min(idx * 0.05, 0.2) }}
+            >
+              <h3 className="mb-2 text-lg font-semibold text-white">{sec.title}</h3>
+              <div className="grid gap-3">
+                {sec.items.map((it) => (
+                  <motion.div
+                    key={it.title}
+                    className="rounded-2xl border border-white/10 bg-black/30 p-4"
+                    initial={{ opacity: 0, y: 12 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, margin: "-120px" }}
+                    transition={{ duration: 0.35, ease: "easeOut" }}
+                  >
+                    <p className="text-sm font-semibold text-neon-magenta">{it.title}</p>
+                    <p className="mt-1 text-sm text-white/75">{it.body}</p>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.article>
+          ))}
         </div>
       </section>
 
@@ -373,21 +563,8 @@ ${suggestion}`;
               analyzing={cameraBusy}
             />
             <ToolTimeline messages={messages} />
-            <ImageStudio
-              prompt={imagePrompt}
-              onPromptChange={setImagePrompt}
-              aspectRatio={imageAspectRatio}
-              onAspectRatioChange={setImageAspectRatio}
-              count={imageCount}
-              onCountChange={(value) => setImageCount(value)}
-              onGenerate={handleGenerateImages}
-              loading={imageLoading}
-              error={imageError}
-              images={imageResults}
-              suggestions={imageSuggestions}
-              onSuggestion={handleImageSuggestion}
-              onReset={resetImageStudio}
-            />
+            <ImageGenerator />
+
           </motion.section>
         </div>
       </section>
@@ -402,124 +579,7 @@ ${suggestion}`;
 
 
 
-type ImageStudioProps = {
-  prompt: string;
-  onPromptChange: (value: string) => void;
-  aspectRatio: string;
-  onAspectRatioChange: (value: string) => void;
-  count: number;
-  onCountChange: (value: number) => void;
-  onGenerate: () => void;
-  loading: boolean;
-  error: string | null;
-  images: Array<{ id: string; dataUrl: string; mimeType: string }>;
-  suggestions: string[];
-  onSuggestion: (value: string) => void;
-  onReset: () => void;
-};
 
-function ImageStudio({
-  prompt,
-  onPromptChange,
-  aspectRatio,
-  onAspectRatioChange,
-  count,
-  onCountChange,
-  onGenerate,
-  loading,
-  error,
-  images,
-  suggestions,
-  onSuggestion,
-  onReset
-}: ImageStudioProps) {
-  return (
-    <div className="space-y-4 rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-white/45">Image studio</p>
-          <h3 className="text-lg font-semibold text-white">Generate illustrative frames</h3>
-        </div>
-        {loading ? <Loader2 className="h-5 w-5 animate-spin text-neon-cyan" /> : null}
-      </div>
-      <textarea
-        value={prompt}
-        onChange={(event) => onPromptChange(event.target.value)}
-        placeholder="Describe the scene Jarvis should render..."
-        className="h-28 w-full resize-none rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white placeholder:text-white/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-cyan/70"
-      />
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="image-aspect">Aspect ratio</Label>
-          <Input
-            id="image-aspect"
-            value={aspectRatio}
-            onChange={(event) => onAspectRatioChange(event.target.value)}
-            placeholder="16:9"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="image-count">Variants</Label>
-          <Input
-            id="image-count"
-            type="number"
-            min={1}
-            max={4}
-            value={count}
-            onChange={(event) => {
-              const next = Number.parseInt(event.target.value, 10);
-              if (Number.isNaN(next)) return;
-              onCountChange(Math.min(Math.max(next, 1), 4));
-            }}
-          />
-        </div>
-      </div>
-      {suggestions.length > 0 && (
-        <AnimatedList
-          items={suggestions}
-          className="grid gap-2 text-xs text-white/70"
-          itemClassName="rounded-xl border border-white/10 bg-white/5 px-3 py-2"
-          displayScrollbar={false}
-          onItemSelect={(item) => onSuggestion(item)}
-        />
-      )}
-      <div className="flex items-center gap-3">
-        <Button
-          type="button"
-          onClick={onGenerate}
-          disabled={loading}
-          className="rounded-full bg-neon-cyan/90 px-6 py-2 text-black transition hover:bg-neon-cyan"
-        >
-          {loading ? "Generating..." : "Generate imagery"}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onReset}
-          className="rounded-full border-white/20 px-4 py-2 text-xs text-white/70 transition hover:border-neon-magenta/60 hover:text-white"
-        >
-          Reset
-        </Button>
-      </div>
-      {error ? <p className="text-xs text-red-400">{error}</p> : null}
-      {images.length > 0 && (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {images.map((image) => (
-            <StarBorder
-
-              key={image.id}
-              color="#f472ff"
-              className="space-y-2 overflow-hidden rounded-2xl border border-white/10 bg-black/30 p-3 text-xs text-white/70"
-            >
-              <img src={image.dataUrl} alt="Generated visual" className="w-full rounded-xl object-cover" />
-              <figcaption className="text-[10px] uppercase tracking-[0.3em] text-white/50">{image.mimeType}</figcaption>
-            </StarBorder>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 
 

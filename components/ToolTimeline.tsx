@@ -1,8 +1,8 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { AlertTriangle, CheckCircle2, Clock3 } from "lucide-react";
-import { useMemo } from "react";
+import { AlertTriangle, CheckCircle2, Clock3, Loader2, Link2, Search, CalendarCheck, Camera } from "lucide-react";
+import { useMemo, useState } from "react";
 
 import type { AgentMessage } from "@/lib/stores/agent-store";
 import { formatToolName } from "@/lib/tools";
@@ -17,7 +17,9 @@ type TimelineEntry = {
   ts: number;
   name: string;
   summary: string;
-  status: "success" | "error";
+  status: "running" | "success" | "error";
+  args?: unknown;
+  result?: unknown;
 };
 
 export function ToolTimeline({ messages }: ToolTimelineProps) {
@@ -27,22 +29,55 @@ export function ToolTimeline({ messages }: ToolTimelineProps) {
       .map((message) => {
         const name = message.toolName ?? message.toolCall?.name ?? "tool";
         const summary = message.text?.trim().length ? message.text.trim() : `**${formatToolName(name)} executed.**`;
-        const status: TimelineEntry["status"] =
-          message.toolResult && typeof message.toolResult === "object" && message.toolResult !== null && "error" in (message.toolResult as Record<string, unknown>)
-            ? "error"
-            : "success";
+        let status: TimelineEntry["status"] = "running";
+        if (message.toolResult) {
+          status =
+            typeof message.toolResult === "object" && message.toolResult !== null && "error" in (message.toolResult as Record<string, unknown>)
+              ? "error"
+              : "success";
+        }
 
         return {
           id: message.id,
           ts: message.ts,
           name,
           summary,
-          status
+          status,
+          args: message.toolCall?.args,
+          result: message.toolResult
         } satisfies TimelineEntry;
       })
       .sort((a, b) => b.ts - a.ts)
       .slice(0, 8);
   }, [messages]);
+
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const toggle = (id: string) => setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+
+  const ToolIcon = ({ name, status }: { name: string; status: TimelineEntry["status"] }) => {
+    const base =
+      status === "success"
+        ? "border-neon-cyan/60 bg-neon-cyan/10 text-neon-cyan"
+        : status === "error"
+        ? "border-red-400/60 bg-red-500/10 text-red-300"
+        : "border-white/25 bg-white/5 text-white/70";
+    const Icon = name.includes("describe")
+      ? Camera
+      : name.includes("open_link") || name.includes("open")
+      ? Link2
+      : name.includes("search")
+      ? Search
+      : name.includes("calendar")
+      ? CalendarCheck
+      : status === "running"
+      ? Loader2
+      : CheckCircle2;
+    return (
+      <span className={cn("mt-0.5 flex h-8 w-8 items-center justify-center rounded-full border", base)}>
+        <Icon className={cn("h-4 w-4", status === "running" && "animate-spin")} />
+      </span>
+    );
+  };
 
   return (
     <motion.section
@@ -77,26 +112,39 @@ export function ToolTimeline({ messages }: ToolTimelineProps) {
                 className="group relative overflow-hidden rounded-2xl border border-white/10 bg-black/30 p-4"
               >
                 <div className="flex items-start gap-3">
-                  <span
-                    className={cn(
-                      "mt-0.5 flex h-8 w-8 items-center justify-center rounded-full border",
-                      event.status === "success"
-                        ? "border-neon-cyan/60 bg-neon-cyan/10 text-neon-cyan"
-                        : "border-red-400/60 bg-red-500/10 text-red-300"
-                    )}
-                  >
-                    {event.status === "success" ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
-                  </span>
+                  <ToolIcon name={event.name} status={event.status} />
                   <div className="flex-1 space-y-1">
                     <p className="text-sm font-semibold text-white">
                       {formatToolName(event.name)}
                     </p>
-                    <p className="text-sm font-semibold text-white/80">
-                      {event.summary.replace(/\*\*/g, "")}
-                    </p>
+                    <p className="text-sm font-semibold text-white/80">{event.summary.replace(/\*\*/g, "")}</p>
                     <p className="text-xs font-semibold text-white/50">
                       {new Date(event.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </p>
+                    {(typeof event.args !== "undefined" || typeof event.result !== "undefined") && (
+                      <div className="mt-2">
+                        <button
+                          className="text-xs text-neon-cyan hover:underline"
+                          onClick={() => toggle(event.id)}
+                        >
+                          {expanded[event.id] ? "Hide details" : "Show details"}
+                        </button>
+                        {expanded[event.id] && (
+                          <div className="mt-2 grid gap-2 rounded-xl border border-white/10 bg-black/40 p-2">
+                            {typeof event.args !== "undefined" && (
+                              <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words text-xs text-white/70">
+                                {JSON.stringify(event.args, null, 2)}
+                              </pre>
+                            )}
+                            {typeof event.result !== "undefined" && (
+                              <pre className="max-h-52 overflow-auto whitespace-pre-wrap break-words text-xs text-white/70">
+                                {JSON.stringify(event.result, null, 2)}
+                              </pre>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </motion.li>

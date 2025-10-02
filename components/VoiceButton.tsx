@@ -36,8 +36,8 @@ export function VoiceButton({ active, disabled, onEngage, onRelease }: VoiceButt
       type="button"
       disabled={disabled}
       className={cn(
-        "relative flex h-20 w-[100px] rounded-circle items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-white/10 to-white/5 text-white shadow-[0_0_35px_rgba(0,240,255,0.2)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-cyan",
-        (active || pressing) && "from-neon-cyan/40 to-neon-magenta/40 shadow-[0_0_45px_rgba(255,78,205,0.4)]",
+        "relative flex h-20 w-[100px] rounded-circle items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-white/10 to-white/5 text-white shadow-[0_0_35px_rgba(0,171,255,0.2)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-cyan",
+        (active || pressing) && "from-neon-cyan/40 to-neon-magenta/40 shadow-[0_0_45px_rgba(255,0,176,0.4)]",
         disabled && "opacity-50"
       )}
       whileTap={{ scale: 0.95 }}
